@@ -75,15 +75,18 @@ def main():
         os.chdir(build_dir)
 
         #pylint: disable=bad-continuation
-        subprocess.check_call([
-            'cmake', '..',
-                     '-GUnix Makefiles',
-                     '-DTARGET=tgt_dev_apis_stdc',
-                     '-DTOOLCHAIN=HOST_GCC',
-                     '-DSUITE=CRYPTO',
-                     '-DPSA_CRYPTO_LIB_FILENAME={}/library/libmbedcrypto.a'.format(mbedtls_dir),
-                     '-DPSA_INCLUDE_PATHS={}/include'.format(mbedtls_dir)
-        ])
+        subprocess.check_call(
+            [
+                'cmake',
+                '..',
+                '-GUnix Makefiles',
+                '-DTARGET=tgt_dev_apis_stdc',
+                '-DTOOLCHAIN=HOST_GCC',
+                '-DSUITE=CRYPTO',
+                f'-DPSA_CRYPTO_LIB_FILENAME={mbedtls_dir}/library/libmbedcrypto.a',
+                f'-DPSA_INCLUDE_PATHS={mbedtls_dir}/include',
+            ]
+        )
         subprocess.check_call(['cmake', '--build', '.'])
 
         proc = subprocess.Popen(['./psa-arch-tests-crypto'],
@@ -124,12 +127,14 @@ def main():
         print('Unexpected failures:', ', '.join(str(i) for i in unexpected_failures))
         print('Unexpected successes:', ', '.join(str(i) for i in sorted(unexpected_successes)))
         print()
-        if unexpected_successes or unexpected_failures:
-            if unexpected_successes:
-                print('Unexpected successes encountered.')
-                print('Please remove the corresponding tests from '
-                      'EXPECTED_FAILURES in tests/scripts/compliance_test.py')
-                print()
+        if unexpected_successes:
+            print('Unexpected successes encountered.')
+            print('Please remove the corresponding tests from '
+                  'EXPECTED_FAILURES in tests/scripts/compliance_test.py')
+            print()
+            print('FAILED')
+            return 1
+        elif unexpected_failures:
             print('FAILED')
             return 1
         else:

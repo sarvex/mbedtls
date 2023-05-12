@@ -311,8 +311,7 @@ class CaseBuilder(macro_collector.PSAMacroCollector):
         """Generate the pretty-printer function code from the gathered
         constant definitions.
         """
-        data = {}
-        data['status_cases'] = self._make_status_cases()
+        data = {'status_cases': self._make_status_cases()}
         data['ecc_curve_cases'] = self._make_ecc_curve_cases()
         data['dh_group_cases'] = self._make_dh_group_cases()
         data['key_type_cases'] = self._make_key_type_cases()
@@ -330,7 +329,7 @@ def generate_psa_constants(header_file_names, output_file_name):
     for header_file_name in header_file_names:
         with open(header_file_name, 'rb') as header_file:
             collector.read_file(header_file)
-    temp_file_name = output_file_name + '.tmp'
+    temp_file_name = f'{output_file_name}.tmp'
     with open(temp_file_name, 'w') as output_file:
         collector.write_file(output_file)
     os.replace(temp_file_name, output_file_name)
@@ -339,6 +338,7 @@ if __name__ == '__main__':
     build_tree.chdir_to_root()
     # Allow to change the directory where psa_constant_names_generated.c is written to.
     OUTPUT_FILE_DIR = sys.argv[1] if len(sys.argv) == 2 else "programs/psa"
-    generate_psa_constants(['include/psa/crypto_values.h',
-                            'include/psa/crypto_extra.h'],
-                           OUTPUT_FILE_DIR + '/psa_constant_names_generated.c')
+    generate_psa_constants(
+        ['include/psa/crypto_values.h', 'include/psa/crypto_extra.h'],
+        f'{OUTPUT_FILE_DIR}/psa_constant_names_generated.c',
+    )

@@ -49,7 +49,7 @@ def main():
     ])[0]
     result.sort(key=lambda x: x.name)
 
-    identifiers = ["{}\n".format(match.name) for match in result]
+    identifiers = [f"{match.name}\n" for match in result]
     with open("identifiers", "w", encoding="utf-8") as f:
         f.writelines(identifiers)
 

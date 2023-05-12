@@ -62,8 +62,7 @@ class Requirements:
             line = re.sub(r'(\A|\s+)#.*', r'', line)
             if not line:
                 continue
-            m = re.match(r'-r\s+', line)
-            if m:
+            if m := re.match(r'-r\s+', line):
                 nested_file = os.path.join(os.path.dirname(filename),
                                            line[m.end(0):])
                 self.add_file(nested_file)
@@ -119,10 +118,12 @@ def main() -> None:
                         const='--user',
                         help="Install to the Python user install directory"
                              " (short for --pip-install-option --user)")
-    parser.add_argument('files', nargs='*', metavar='FILE',
-                        help="Requirement files"
-                             " (default: {} in the script's directory)" \
-                             .format(DEFAULT_REQUIREMENTS_FILE))
+    parser.add_argument(
+        'files',
+        nargs='*',
+        metavar='FILE',
+        help=f"Requirement files (default: {DEFAULT_REQUIREMENTS_FILE} in the script's directory)",
+    )
     options = parser.parse_args()
     if not options.files:
         options.files = [os.path.join(os.path.dirname(__file__),

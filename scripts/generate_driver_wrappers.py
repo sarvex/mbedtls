@@ -91,20 +91,23 @@ def validate_json(driverjson_data: Driver, driverschema_list: dict) -> None:
         # This could happen if the driverjson_data.type does not exist in the provided schema list
         # schemas = {'transparent': transparent_driver_schema, 'opaque': opaque_driver_schema}
         # Print onto stdout and stderr.
-        print("Unknown Driver type " + driver_type +
-              " for driver " + driver_prefix, str(err))
-        print("Unknown Driver type " + driver_type +
-              " for driver " + driver_prefix, str(err), file=sys.stderr)
+        print(f"Unknown Driver type {driver_type} for driver {driver_prefix}", err)
+        print(
+            f"Unknown Driver type {driver_type} for driver {driver_prefix}",
+            err,
+            file=sys.stderr,
+        )
         raise JsonValidationException() from err
 
     except jsonschema.exceptions.ValidationError as err:
         # Print onto stdout and stderr.
-        print("Error: Failed to validate data file: {} using schema: {}."
-              "\n Exception Message: \"{}\""
-              " ".format(driverjson_data, _schema, str(err)))
-        print("Error: Failed to validate data file: {} using schema: {}."
-              "\n Exception Message: \"{}\""
-              " ".format(driverjson_data, _schema, str(err)), file=sys.stderr)
+        print(
+            f'Error: Failed to validate data file: {driverjson_data} using schema: {_schema}.\n Exception Message: \"{str(err)}\" '
+        )
+        print(
+            f'Error: Failed to validate data file: {driverjson_data} using schema: {_schema}.\n Exception Message: \"{str(err)}\" ',
+            file=sys.stderr,
+        )
         raise JsonValidationException() from err
 
 
@@ -162,9 +165,10 @@ def read_driver_descriptions(mbedtls_root: str,
 
 def trace_exception(e: Exception, file=sys.stderr) -> None:
     """Prints exception trace to the given TextIO handle"""
-    print("Exception: type: %s, message: %s, trace: %s" % (
-        e.__class__, str(e), format_tb(e.__traceback__)
-    ), file)
+    print(
+        f"Exception: type: {e.__class__}, message: {str(e)}, trace: {format_tb(e.__traceback__)}",
+        file,
+    )
 
 
 def main() -> int:

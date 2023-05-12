@@ -38,9 +38,7 @@ import subprocess
 OUTPUT_FILE_PREFIX = 'config-'
 
 def output_file_name(directory, stem, extension):
-    return os.path.join(directory,
-                        '{}{}.{}'.format(OUTPUT_FILE_PREFIX,
-                                         stem, extension))
+    return os.path.join(directory, f'{OUTPUT_FILE_PREFIX}{stem}.{extension}')
 
 def cleanup_directory(directory):
     """Remove old output files."""
@@ -74,9 +72,7 @@ def guess_presets_from_help(help_text):
             words.remove('set')
             words.remove('unset')
             return words
-    # Try the output format from config.pl
-    hits = re.findall(r'\n +([-\w]+) +- ', help_text)
-    if hits:
+    if hits := re.findall(r'\n +([-\w]+) +- ', help_text):
         return hits
     raise Exception("Unable to figure out supported presets. Pass the '-p' option.")
 
@@ -88,12 +84,11 @@ def list_presets(options):
     """
     if options.presets:
         return re.split(r'[ ,]+', options.presets)
-    else:
-        help_text = subprocess.run([options.script, '--help'],
-                                   check=False, # config.pl --help returns 255
-                                   stdout=subprocess.PIPE,
-                                   stderr=subprocess.STDOUT).stdout
-        return guess_presets_from_help(help_text.decode('ascii'))
+    help_text = subprocess.run([options.script, '--help'],
+                               check=False, # config.pl --help returns 255
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT).stdout
+    return guess_presets_from_help(help_text.decode('ascii'))
 
 def run_one(options, args, stem_prefix='', input_file=None):
     """Run the config script with the given arguments.
@@ -131,8 +126,8 @@ def run_one(options, args, stem_prefix='', input_file=None):
                                      stdin=subprocess.DEVNULL,
                                      stdout=out, stderr=err)
     with open(status_filename, 'w') as status_file:
-        status_file.write('{}\n'.format(status))
-    return stem + "+", data_filename
+        status_file.write(f'{status}\n')
+    return f"{stem}+", data_filename
 
 ### A list of symbols to test with.
 ### This script currently tests what happens when you change a symbol from

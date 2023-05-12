@@ -173,13 +173,16 @@ def run_c_source(src, cflags):
     srcfile = os.fdopen(fd, mode="w")
     srcfile.write(src)
     srcfile.close()
-    args = [CC,
-            *cflags,
-            '-I' + join_src_path("include"),
-            "-o", binname,
-            '-L' + MBEDTLS_LIBRARY_PATH,
-            srcname,
-            '-lmbedcrypto']
+    args = [
+        CC,
+        *cflags,
+        '-I' + join_src_path("include"),
+        "-o",
+        binname,
+        f'-L{MBEDTLS_LIBRARY_PATH}',
+        srcname,
+        '-lmbedcrypto',
+    ]
 
     p = subprocess.run(args=args, check=False)
     if p.returncode != 0:
@@ -200,9 +203,10 @@ def compute_curve(curve):
         SRC_DUMP_COMB_TABLE,
         [
             '-g',
-            '-DCURVE_ID=MBEDTLS_ECP_DP_%s' % curve.upper(),
-            '-DCURVE_NAME="%s"' % curve.lower(),
-        ])
+            f'-DCURVE_ID=MBEDTLS_ECP_DP_{curve.upper()}',
+            f'-DCURVE_NAME="{curve.lower()}"',
+        ],
+    )
     if not r:
         print("""\
 Unable to compile and run utility.""", file=sys.stderr)

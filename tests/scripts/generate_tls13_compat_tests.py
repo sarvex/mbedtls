@@ -398,7 +398,7 @@ class MbedTLSServ(MbedTLSBase):
                                 iana_value=NAMED_GROUP_IANA_VALUE[named_group])]
 
         check_strings.append("Certificate verification was skipped")
-        return ['-s "{}"'.format(i) for i in check_strings]
+        return [f'-s "{i}"' for i in check_strings]
 
     def pre_cmd(self):
         ret = ['$P_SRV']
@@ -445,7 +445,7 @@ class MbedTLSCli(MbedTLSBase):
                                 iana_value=NAMED_GROUP_IANA_VALUE[named_group])]
 
         check_strings.append("Verifying peer X.509 certificate... ok")
-        return ['-c "{}"'.format(i) for i in check_strings]
+        return [f'-c "{i}"' for i in check_strings]
 
 
 SERVER_CLASSES = {'OpenSSL': OpenSSLServ, 'GnuTLS': GnuTLSServ, 'mbedTLS': MbedTLSServ}
@@ -468,10 +468,12 @@ def generate_compat_test(client=None, server=None, cipher=None, named_group=None
                                            signature_algorithm=sig_alg,
                                            cert_sig_alg=sig_alg)
 
-    cmd = ['run_test "{}"'.format(name),
-           '"{}"'.format(' '.join(server_object.cmd())),
-           '"{}"'.format(' '.join(client_object.cmd())),
-           '0']
+    cmd = [
+        f'run_test "{name}"',
+        f""""{' '.join(server_object.cmd())}\"""",
+        f""""{' '.join(client_object.cmd())}\"""",
+        '0',
+    ]
     cmd += server_object.post_checks()
     cmd += client_object.post_checks()
     cmd += ['-C "received HelloRetryRequest message"']
@@ -496,10 +498,12 @@ def generate_hrr_compat_test(client=None, server=None,
                                            cert_sig_alg=cert_sig_alg)
     client_object.add_named_groups(server_named_group)
 
-    cmd = ['run_test "{}"'.format(name),
-           '"{}"'.format(' '.join(server_object.cmd())),
-           '"{}"'.format(' '.join(client_object.cmd())),
-           '0']
+    cmd = [
+        f'run_test "{name}"',
+        f""""{' '.join(server_object.cmd())}\"""",
+        f""""{' '.join(client_object.cmd())}\"""",
+        '0',
+    ]
     cmd += server_object.post_checks()
     cmd += client_object.post_checks()
     cmd += server_object.hrr_post_checks(server_named_group)

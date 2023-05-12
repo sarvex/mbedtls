@@ -93,10 +93,7 @@ def as_expr(thing: Exprable) -> Expr:
     `Expr` object from `thing`. `thing` can be an integer or a string that
     contains a C expression.
     """
-    if isinstance(thing, Expr):
-        return thing
-    else:
-        return Expr(thing)
+    return thing if isinstance(thing, Expr) else Expr(thing)
 
 
 class Key:
@@ -131,7 +128,7 @@ class Key:
     def pack(
             fmt: str,
             *args: Union[int, Expr]
-    ) -> bytes: #pylint: disable=used-before-assignment
+    ) -> bytes:    #pylint: disable=used-before-assignment
         """Pack the given arguments into a byte string according to the given format.
 
         This function is similar to `struct.pack`, but with the following differences:
@@ -141,9 +138,10 @@ class Key:
         * Arguments can be `Expr` objects instead of integers.
         * Only integer-valued elements are supported.
         """
-        return struct.pack('<' + fmt, # little-endian, standard sizes
-                           *[arg.value() if isinstance(arg, Expr) else arg
-                             for arg in args])
+        return struct.pack(
+            f'<{fmt}',
+            *[arg.value() if isinstance(arg, Expr) else arg for arg in args],
+        )
 
     def bytes(self) -> bytes:
         """Return the representation of the key in storage as a byte array.
@@ -158,13 +156,12 @@ class Key:
         compatibility before making any change here.
         """
         header = self.MAGIC + self.pack('L', self.version)
-        if self.version == 0:
-            attributes = self.pack('LHHLLL',
-                                   self.lifetime, self.type, self.bits,
-                                   self.usage, self.alg, self.alg2)
-            material = self.pack('L', len(self.material)) + self.material
-        else:
+        if self.version != 0:
             raise NotImplementedError
+        attributes = self.pack('LHHLLL',
+                               self.lifetime, self.type, self.bits,
+                               self.usage, self.alg, self.alg2)
+        material = self.pack('L', len(self.material)) + self.material
         return header + attributes + material
 
     def hex(self) -> str:

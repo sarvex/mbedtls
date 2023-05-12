@@ -35,13 +35,13 @@ def remove_c_comments(string):
     """
     string_pattern = r"(?P<string>\".*?\"|\'.*?\')"
     comment_pattern = r"(?P<comment>/\*.*?\*/|//[^\r\n]*$)"
-    pattern = re.compile(string_pattern + r'|' + comment_pattern,
-                         re.MULTILINE | re.DOTALL)
+    pattern = re.compile(
+        f'{string_pattern}|{comment_pattern}', re.MULTILINE | re.DOTALL
+    )
 
     def replacer(match):
-        if match.lastgroup == 'comment':
-            return ""
-        return match.group()
+        return "" if match.lastgroup == 'comment' else match.group()
+
     return pattern.sub(replacer, string)
 
 
@@ -173,14 +173,14 @@ class EnumDefinition:
         assert body
         assert span
         # If suffix_name exists, it is a typedef
-        self._prototype = suffix_name if suffix_name else 'enum ' + prefix_name
+        self._prototype = suffix_name if suffix_name else f'enum {prefix_name}'
         self._name = suffix_name if suffix_name else prefix_name
         self._body = body
         self._source = source_code
         self._span = span
 
     def __repr__(self):
-        return 'Enum({},{})'.format(self._name, self._span)
+        return f'Enum({self._name},{self._span})'
 
     def __str__(self):
         return repr(self)
@@ -252,8 +252,7 @@ class SignatureAlgorithmDefinition:
         sig_alg_pattern = re.compile(r'#define\s+(?P<name>MBEDTLS_TLS1_3_SIG_\w+)\s+' +
                                      r'(?P<value>0[xX][0-9a-fA-F]+)$',
                                      re.MULTILINE | re.DOTALL)
-        matches = list(sig_alg_pattern.finditer(source_code, start, end))
-        if matches:
+        if matches := list(sig_alg_pattern.finditer(source_code, start, end)):
             yield SignatureAlgorithmDefinition(source_code, definitions=matches)
 
     def __init__(self, source_code, definitions=None):
@@ -264,7 +263,7 @@ class SignatureAlgorithmDefinition:
         self._source = source_code
 
     def __repr__(self):
-        return 'SigAlgs({})'.format(self._definitions[0].span())
+        return f'SigAlgs({self._definitions[0].span()})'
 
     def span(self):
         return self._definitions[0].span()
@@ -277,8 +276,7 @@ class SignatureAlgorithmDefinition:
         for m in self._definitions:
             name = m.groupdict()['name']
             return_val = name[len('MBEDTLS_TLS1_3_SIG_'):].lower()
-            translation_table.append(
-                '    case {}:\n        return "{}";'.format(name, return_val))
+            translation_table.append(f'    case {name}:\n        return "{return_val}";')
 
         body = textwrap.dedent('''\
             const char *mbedtls_ssl_sig_alg_to_str( uint16_t in )
@@ -311,8 +309,7 @@ class NamedGroupDefinition:
         named_group_pattern = re.compile(r'#define\s+(?P<name>MBEDTLS_SSL_IANA_TLS_GROUP_\w+)\s+' +
                                          r'(?P<value>0[xX][0-9a-fA-F]+)$',
                                          re.MULTILINE | re.DOTALL)
-        matches = list(named_group_pattern.finditer(source_code, start, end))
-        if matches:
+        if matches := list(named_group_pattern.finditer(source_code, start, end)):
             yield NamedGroupDefinition(source_code, definitions=matches)
 
     def __init__(self, source_code, definitions=None):
@@ -323,7 +320,7 @@ class NamedGroupDefinition:
         self._source = source_code
 
     def __repr__(self):
-        return 'NamedGroup({})'.format(self._definitions[0].span())
+        return f'NamedGroup({self._definitions[0].span()})'
 
     def span(self):
         return self._definitions[0].span()
@@ -336,7 +333,7 @@ class NamedGroupDefinition:
         for m in self._definitions:
             name = m.groupdict()['name']
             iana_name = name[len('MBEDTLS_SSL_IANA_TLS_GROUP_'):].lower()
-            translation_table.append('    case {}:\n        return "{}";'.format(name, iana_name))
+            translation_table.append(f'    case {name}:\n        return "{iana_name}";')
 
         body = textwrap.dedent('''\
             const char *mbedtls_ssl_named_group_to_str( uint16_t in )
@@ -400,7 +397,7 @@ def generate_ssl_debug_helpers(output_directory, mbedtls_root):
     with open(os.path.join(mbedtls_root, 'include/mbedtls/ssl.h')) as f:
         source_code = remove_c_comments(f.read())
 
-    definitions = dict()
+    definitions = {}
     for start, instance in preprocess_c_source_code(source_code,
                                                     EnumDefinition,
                                                     SignatureAlgorithmDefinition,

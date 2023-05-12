@@ -75,7 +75,7 @@ class BignumModRawFixQuasiReduction(bignum_common.ModOperationCommon,
 
     @property
     def is_valid(self) -> bool:
-        return bool(self.int_a < 2 * self.int_n)
+        return self.int_a < 2 * self.int_n
 
 class BignumModRawMul(bignum_common.ModOperationCommon,
                       BignumModRawTarget):
@@ -150,7 +150,7 @@ class BignumModRawConvertRep(bignum_common.ModOperationCommon,
 
     def description(self) -> str:
         base = super().description()
-        mod_with_rep = 'mod({})'.format(self.rep.name)
+        mod_with_rep = f'mod({self.rep.name})'
         return base.replace('mod', mod_with_rep, 1)
 
     @classmethod

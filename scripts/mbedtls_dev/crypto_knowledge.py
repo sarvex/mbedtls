@@ -96,12 +96,11 @@ class KeyType:
         For key types constructed from a macro with arguments, this is the
         name of the macro, and the arguments are in `self.params`.
         """
-        if params is None:
-            if '(' in self.name:
-                m = re.match(r'(\w+)\s*\((.*)\)\Z', self.name)
-                assert m is not None
-                self.name = m.group(1)
-                params = m.group(2).split(',')
+        if params is None and '(' in self.name:
+            m = re.match(r'(\w+)\s*\((.*)\)\Z', self.name)
+            assert m is not None
+            self.name = m[1]
+            params = m[2].split(',')
         self.params = (None if params is None else
                        [param.strip() for param in params])
         """The parameters of the key type, if there are any.
@@ -117,7 +116,7 @@ class KeyType:
 
         m = re.match(r'PSA_KEY_TYPE_(\w+)', self.name)
         assert m
-        self.head = re.sub(r'_(?:PUBLIC_KEY|KEY_PAIR)\Z', r'', m.group(1))
+        self.head = re.sub(r'_(?:PUBLIC_KEY|KEY_PAIR)\Z', r'', m[1])
         """The key type macro name, with common prefixes and suffixes stripped."""
 
         self.private_type = re.sub(r'_PUBLIC_KEY\Z', r'_KEY_PAIR', self.name)
@@ -194,12 +193,12 @@ class KeyType:
         """
         if self.expression in ASYMMETRIC_KEY_DATA:
             if bits not in ASYMMETRIC_KEY_DATA[self.expression]:
-                raise ValueError('No key data for {}-bit {}'
-                                 .format(bits, self.expression))
+                raise ValueError(f'No key data for {bits}-bit {self.expression}')
             return ASYMMETRIC_KEY_DATA[self.expression][bits]
         if bits % 8 != 0:
-            raise ValueError('Non-integer number of bytes: {} bits for {}'
-                             .format(bits, self.expression))
+            raise ValueError(
+                f'Non-integer number of bytes: {bits} bits for {self.expression}'
+            )
         length = bits // 8
         if self.name == 'PSA_KEY_TYPE_DES':
             # "644573206b457901644573206b457902644573206b457904"
@@ -225,22 +224,19 @@ class KeyType:
                 'ECB_NO_PADDING',
             ]
         if self.head in BLOCK_CIPHERS and \
-           alg.head in frozenset.union(BLOCK_MAC_MODES,
+               alg.head in frozenset.union(BLOCK_MAC_MODES,
                                        BLOCK_CIPHER_MODES,
                                        BLOCK_AEAD_MODES):
-            if alg.head in ['CMAC', 'OFB'] and \
-               self.head in ['ARIA', 'CAMELLIA']:
-                return False # not implemented in Mbed TLS
-            return True
+            return alg.head not in ['CMAC', 'OFB'] or self.head not in ['ARIA', 'CAMELLIA']
         if self.head == 'CHACHA20' and alg.head == 'CHACHA20_POLY1305':
             return True
         if self.head in {'ARC4', 'CHACHA20'} and \
-           alg.head == 'STREAM_CIPHER':
+               alg.head == 'STREAM_CIPHER':
             return True
         if self.head == 'RSA' and alg.head.startswith('RSA_'):
             return True
         if alg.category == AlgorithmCategory.KEY_AGREEMENT and \
-           self.is_public():
+               self.is_public():
             # The PSA API does not use public key objects in key agreement
             # operations: it imports the public key as a formatted byte string.
             # So a public key object with a key agreement algorithm is not
@@ -252,14 +248,14 @@ class KeyType:
             assert self.params is not None
             eccc = EllipticCurveCategory.from_family(self.params[0])
             if alg.head == 'ECDH' and \
-               eccc in {EllipticCurveCategory.SHORT_WEIERSTRASS,
+                   eccc in {EllipticCurveCategory.SHORT_WEIERSTRASS,
                         EllipticCurveCategory.MONTGOMERY}:
                 return True
             if alg.head == 'ECDSA' and \
-               eccc == EllipticCurveCategory.SHORT_WEIERSTRASS:
+                   eccc == EllipticCurveCategory.SHORT_WEIERSTRASS:
                 return True
             if alg.head in {'PURE_EDDSA', 'EDDSA_PREHASH'} and \
-               eccc == EllipticCurveCategory.TWISTED_EDWARDS:
+                   eccc == EllipticCurveCategory.TWISTED_EDWARDS:
                 return True
         return False
 
@@ -293,7 +289,7 @@ class AlgorithmCategory(enum.Enum):
 
 class AlgorithmNotRecognized(Exception):
     def __init__(self, expr: str) -> None:
-        super().__init__('Algorithm not recognized: ' + expr)
+        super().__init__(f'Algorithm not recognized: {expr}')
         self.expr = expr
 
 
@@ -308,12 +304,14 @@ class Algorithm:
 
         This function does not attempt to detect invalid inputs.
         """
-        m = re.match(r'PSA_ALG_(?:'
-                     r'(?:TRUNCATED|AT_LEAST_THIS_LENGTH)_MAC|'
-                     r'AEAD_WITH_(?:SHORTENED|AT_LEAST_THIS_LENGTH)_TAG'
-                     r')\((.*),[^,]+\)\Z', expr)
-        if m:
-            expr = m.group(1)
+        if m := re.match(
+            r'PSA_ALG_(?:'
+            r'(?:TRUNCATED|AT_LEAST_THIS_LENGTH)_MAC|'
+            r'AEAD_WITH_(?:SHORTENED|AT_LEAST_THIS_LENGTH)_TAG'
+            r')\((.*),[^,]+\)\Z',
+            expr,
+        ):
+            expr = m[1]
         return expr
 
     @staticmethod
@@ -326,12 +324,12 @@ class Algorithm:
         m = re.match(r'PSA_ALG_(?:DETERMINISTIC_)?(\w+)', expr)
         if not m:
             raise AlgorithmNotRecognized(expr)
-        head = m.group(1)
+        head = m[1]
         if head == 'KEY_AGREEMENT':
-            m = re.match(r'PSA_ALG_KEY_AGREEMENT\s*\(\s*PSA_ALG_(\w+)', expr)
-            if not m:
+            if m := re.match(r'PSA_ALG_KEY_AGREEMENT\s*\(\s*PSA_ALG_(\w+)', expr):
+                head = m[1]
+            else:
                 raise AlgorithmNotRecognized(expr)
-            head = m.group(1)
         head = re.sub(r'_ANY\Z', r'', head)
         if re.match(r'ED[0-9]+PH\Z', head):
             head = 'EDDSA_PREHASH'
@@ -395,9 +393,7 @@ class Algorithm:
         """
         if re.search(r'\bPSA_ALG_ANY_HASH\b', expr):
             return True
-        if re.search(r'_AT_LEAST_', expr):
-            return True
-        return False
+        return bool(re.search(r'_AT_LEAST_', expr))
 
     def __init__(self, expr: str) -> None:
         """Analyze an algorithm value.
@@ -424,11 +420,9 @@ class Algorithm:
         m = re.match(r'PSA_ALG_KEY_AGREEMENT\(\w+,\s*(.*)\)\Z', self.expression)
         if not m:
             return None
-        kdf_alg = m.group(1)
+        kdf_alg = m[1]
         # Assume kdf_alg is either a valid KDF or 0.
-        if re.match(r'(?:0[Xx])?0+\s*\Z', kdf_alg):
-            return None
-        return kdf_alg
+        return None if re.match(r'(?:0[Xx])?0+\s*\Z', kdf_alg) else kdf_alg
 
     KEY_DERIVATIONS_INCOMPATIBLE_WITH_AGREEMENT = frozenset([
         'PSA_ALG_TLS12_ECJPAKE_TO_PMS', # secret input in specific format
@@ -464,10 +458,9 @@ class Algorithm:
         """The length of the given hash algorithm, in bytes."""
         if alg in cls.HASH_LENGTH:
             return cls.HASH_LENGTH[alg]
-        m = cls.HASH_LENGTH_BITS_RE.search(alg)
-        if m:
+        if m := cls.HASH_LENGTH_BITS_RE.search(alg):
             return int(m.group(1)) // 8
-        raise ValueError('Unknown hash length for ' + alg)
+        raise ValueError(f'Unknown hash length for {alg}')
 
     PERMITTED_TAG_LENGTHS = {
         'PSA_ALG_CCM': frozenset([4, 6, 8, 10, 12, 14, 16]),
@@ -492,11 +485,10 @@ class Algorithm:
             return cls.PERMITTED_TAG_LENGTHS[base]
         max_length = cls.MAC_LENGTH.get(base, None)
         if max_length is None:
-            m = cls.HMAC_RE.match(base)
-            if m:
+            if m := cls.HMAC_RE.match(base):
                 max_length = cls.hash_length(m.group(1))
         if max_length is None:
-            raise ValueError('Unknown permitted lengths for ' + base)
+            raise ValueError(f'Unknown permitted lengths for {base}')
         return frozenset(range(4, max_length + 1))
 
     TRUNCATED_ALG_RE = re.compile(
@@ -510,8 +502,7 @@ class Algorithm:
         a length that cannot be determined. True for anything other than
         a truncated MAC or AEAD.
         """
-        m = self.TRUNCATED_ALG_RE.match(self.expression)
-        if m:
+        if m := self.TRUNCATED_ALG_RE.match(self.expression):
             base = m.group('base')
             to_length = int(m.group('length'), 0)
             permitted_lengths = self.permitted_truncations(base)
@@ -526,21 +517,17 @@ class Algorithm:
         "grammatically" correct way, and only rejects semantically invalid
         combinations.
         """
-        if self.is_wildcard:
-            return False
-        if self.is_invalid_truncation():
-            return False
-        return True
+        return False if self.is_wildcard else not self.is_invalid_truncation()
 
     def can_do(self, category: AlgorithmCategory) -> bool:
         """Whether this algorithm can perform operations in the given category.
         """
         if category == self.category:
             return True
-        if category == AlgorithmCategory.KEY_DERIVATION and \
-           self.is_valid_key_agreement_with_derivation():
-            return True
-        return False
+        return bool(
+            category == AlgorithmCategory.KEY_DERIVATION
+            and self.is_valid_key_agreement_with_derivation()
+        )
 
     def usage_flags(self, public: bool = False) -> List[str]:
         """The list of usage flags describing operations that can perform this algorithm.
@@ -552,8 +539,7 @@ class Algorithm:
         elif self.category == AlgorithmCategory.MAC:
             flags = ['SIGN_HASH', 'SIGN_MESSAGE',
                      'VERIFY_HASH', 'VERIFY_MESSAGE']
-        elif self.category == AlgorithmCategory.CIPHER or \
-             self.category == AlgorithmCategory.AEAD:
+        elif self.category in [AlgorithmCategory.CIPHER, AlgorithmCategory.AEAD]:
             flags = ['DECRYPT', 'ENCRYPT']
         elif self.category == AlgorithmCategory.SIGN:
             flags = ['VERIFY_HASH', 'VERIFY_MESSAGE']
@@ -563,9 +549,11 @@ class Algorithm:
             flags = ['ENCRYPT']
             if not public:
                 flags += ['DECRYPT']
-        elif self.category == AlgorithmCategory.KEY_DERIVATION or \
-             self.category == AlgorithmCategory.KEY_AGREEMENT:
+        elif self.category in [
+            AlgorithmCategory.KEY_DERIVATION,
+            AlgorithmCategory.KEY_AGREEMENT,
+        ]:
             flags = ['DERIVE']
         else:
             raise AlgorithmNotRecognized(self.expression)
-        return ['PSA_KEY_USAGE_' + flag for flag in flags]
+        return [f'PSA_KEY_USAGE_{flag}' for flag in flags]

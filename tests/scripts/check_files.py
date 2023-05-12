@@ -83,10 +83,9 @@ class FileIssueTracker:
         for files_exemption in self.suffix_exemptions:
             if filepath.endswith(files_exemption):
                 return False
-        if self.path_exemptions and \
-           re.match(self.path_exemptions, self.normalize_path(filepath)):
-            return False
-        return True
+        return not self.path_exemptions or not re.match(
+            self.path_exemptions, self.normalize_path(filepath)
+        )
 
     def check_file_for_issue(self, filepath):
         """Check the specified file for the issue that this class is for.
@@ -107,9 +106,7 @@ class FileIssueTracker:
             logger.info(self.heading)
             for filename, lines in sorted(self.files_with_issues.items()):
                 if lines:
-                    logger.info("{}: {}".format(
-                        filename, ", ".join(str(x) for x in lines)
-                    ))
+                    logger.info(f'{filename}: {", ".join(str(x) for x in lines)}')
                 else:
                     logger.info(filename)
             logger.info("")
@@ -205,12 +202,10 @@ class ShebangIssueTracker(FileIssueTracker):
         m = re.match(self._shebang_re, first_line)
         if not m:
             return False
-        interpreter = m.group(1) or m.group(2)
+        interpreter = m[1] or m[2]
         if interpreter not in self._extensions:
             return False
-        if not filepath.endswith('.' + self._extensions[interpreter]):
-            return False
-        return True
+        return bool(filepath.endswith(f'.{self._extensions[interpreter]}'))
 
     def check_file_for_issue(self, filepath):
         is_executable = os.access(filepath, os.X_OK)
@@ -369,10 +364,7 @@ class MergeArtifactIssueTracker(LineIssueTracker):
             return True
         if line.startswith(b'||||||| '): # from merge.conflictStyle=diff3
             return True
-        if line.rstrip(b'\r\n') == b'=======' and \
-           not _filepath.endswith('.md'):
-            return True
-        return False
+        return line.rstrip(b'\r\n') == b'=======' and not _filepath.endswith('.md')
 
 
 class IntegrityChecker:

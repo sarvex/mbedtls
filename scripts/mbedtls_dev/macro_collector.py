@@ -23,7 +23,7 @@ from typing import Dict, IO, Iterable, Iterator, List, Optional, Pattern, Set, T
 
 class ReadFileLineException(Exception):
     def __init__(self, filename: str, line_number: Union[int, str]) -> None:
-        message = 'in {} at {}'.format(filename, line_number)
+        message = f'in {filename} at {line_number}'
         super(ReadFileLineException, self).__init__(message)
         self.filename = filename
         self.line_number = line_number
@@ -153,7 +153,7 @@ class PSAMacroEnumerator:
         The resulting format is consistent with
         `InputsForTest.normalize_argument`.
         """
-        return name + '(' + ', '.join(arguments) + ')'
+        return f'{name}(' + ', '.join(arguments) + ')'
 
     _argument_split_re = re.compile(r' *, *')
     @classmethod
@@ -174,7 +174,7 @@ class PSAMacroEnumerator:
                 return
             argspec = self.argspecs[name]
             if argspec == []:
-                yield name + '()'
+                yield f'{name}()'
                 return
             argument_lists = [self.arguments_for[arg] for arg in argspec]
             arguments = [values[0] for values in argument_lists]
@@ -188,7 +188,7 @@ class PSAMacroEnumerator:
                     yield self._format_arguments(name, arguments)
                 arguments[i] = argument_lists[i][0]
         except BaseException as e:
-            raise Exception('distribute_arguments({})'.format(name)) from e
+            raise Exception(f'distribute_arguments({name})') from e
 
     def distribute_arguments_without_duplicates(
             self, seen: Set[str], name: str
@@ -312,14 +312,14 @@ class PSAMacroCollector(PSAMacroEnumerator):
             # Macro only to build actual values
             return
         elif (name.startswith('PSA_ERROR_') or name == 'PSA_SUCCESS') \
-           and not parameter:
+               and not parameter:
             self.statuses.add(name)
         elif name.startswith('PSA_KEY_TYPE_') and not parameter:
             self.key_types.add(name)
         elif name.startswith('PSA_KEY_TYPE_') and parameter == 'curve':
-            self.key_types_from_curve[name] = name[:13] + 'IS_' + name[13:]
+            self.key_types_from_curve[name] = f'{name[:13]}IS_{name[13:]}'
         elif name.startswith('PSA_KEY_TYPE_') and parameter == 'group':
-            self.key_types_from_group[name] = name[:13] + 'IS_' + name[13:]
+            self.key_types_from_group[name] = f'{name[:13]}IS_{name[13:]}'
         elif name.startswith('PSA_ECC_FAMILY_') and not parameter:
             self.ecc_curves.add(name)
         elif name.startswith('PSA_DH_FAMILY_') and not parameter:
@@ -343,11 +343,9 @@ class PSAMacroCollector(PSAMacroEnumerator):
     _continued_line_re = re.compile(rb'\\\r?\n\Z')
     def read_file(self, header_file):
         for line in header_file:
-            m = re.search(self._continued_line_re, line)
-            while m:
+            while m := re.search(self._continued_line_re, line):
                 cont = next(header_file)
                 line = line[:m.start(0)] + cont
-                m = re.search(self._continued_line_re, line)
             line = re.sub(self._nonascii_re, rb'', line).decode('ascii')
             self.read_line(line)
 
@@ -478,18 +476,18 @@ enumerate
         m = re.match(self._header_line_re, line)
         if not m:
             return
-        name = m.group(1)
+        name = m[1]
         self.all_declared.add(name)
         if re.search(self._excluded_name_re, name) or \
-           name in self._excluded_names or \
-           self.is_internal_name(name):
+               name in self._excluded_names or \
+               self.is_internal_name(name):
             return
-        dest = self.table_by_prefix.get(m.group(2))
+        dest = self.table_by_prefix.get(m[2])
         if dest is None:
             return
         dest.add(name)
-        if m.group(3):
-            self.argspecs[name] = self._argument_split(m.group(3))
+        if m[3]:
+            self.argspecs[name] = self._argument_split(m[3])
 
     _nonascii_re = re.compile(rb'[^\x00-\x7f]+') #type: Pattern
     def parse_header(self, filename: str) -> None:
@@ -506,9 +504,7 @@ enumerate
                 yield name
 
     def accept_test_case_line(self, function: str, argument: str) -> bool:
-        #pylint: disable=unused-argument
-        undeclared = list(self.generate_undeclared_names(argument))
-        if undeclared:
+        if undeclared := list(self.generate_undeclared_names(argument)):
             raise Exception('Undeclared names in test case', undeclared)
         return True
 
@@ -545,6 +541,5 @@ enumerate
         """Parse a test case file (*.data), looking for algorithm metadata tests."""
         with read_file_lines(filename) as lines:
             for line in lines:
-                m = re.match(self._test_case_line_re, line)
-                if m:
-                    self.add_test_case_line(m.group(1), m.group(2))
+                if m := re.match(self._test_case_line_re, line):
+                    self.add_test_case_line(m[1], m[2])

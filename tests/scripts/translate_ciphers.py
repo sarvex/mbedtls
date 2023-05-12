@@ -105,18 +105,17 @@ def translate_gnutls(s_cipher):
     # SHA in Mbed TLS == SHA1 GnuTLS,
     # if the last 3 chars are SHA append 1
     if s_cipher[-3:] == "SHA":
-        s_cipher = s_cipher+"1"
+        s_cipher = f"{s_cipher}1"
 
     # CCM or CCM-8 should be followed by ":+AEAD"
     # Replace "GCM:+SHAxyz" with "GCM:+AEAD"
     if "CCM" in s_cipher or "GCM" in s_cipher:
         s_cipher = re.sub(r"GCM-SHA\d\d\d", "GCM", s_cipher)
-        s_cipher = s_cipher+":+AEAD"
+        s_cipher = f"{s_cipher}:+AEAD"
 
-    # Replace the last "-" with ":+"
     else:
         index = s_cipher.rindex("-")
-        s_cipher = s_cipher[:index] + ":+" + s_cipher[index+1:]
+        s_cipher = f"{s_cipher[:index]}:+{s_cipher[index + 1:]}"
 
     return s_cipher
 
@@ -179,7 +178,7 @@ def format_ciphersuite_names(mode, names):
          "o": translate_ossl,
          "m": translate_mbedtls
         }[mode]
-    return " ".join(c + '=' + t(c) for c in names)
+    return " ".join(f'{c}={t(c)}' for c in names)
 
 def main(target, names):
     print(format_ciphersuite_names(target, names))

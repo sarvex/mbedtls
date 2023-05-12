@@ -76,7 +76,7 @@ def get_src_files() -> List[str]:
                             check=False)
 
     if result.returncode != 0:
-        print_err("git ls-files returned: " + str(result.returncode))
+        print_err(f"git ls-files returned: {str(result.returncode)}")
         return []
     else:
         generated_files = list_generated_files()
@@ -96,11 +96,10 @@ def get_uncrustify_version() -> str:
     result = subprocess.run([UNCRUSTIFY_EXE, "--version"],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             check=False)
-    if result.returncode != 0:
-        print_err("Could not get Uncrustify version:", str(result.stderr, "utf-8"))
-        return ""
-    else:
+    if result.returncode == 0:
         return str(result.stdout, "utf-8")
+    print_err("Could not get Uncrustify version:", str(result.stderr, "utf-8"))
+    return ""
 
 def check_style_is_correct(src_file_list: List[str]) -> bool:
     """
@@ -113,25 +112,26 @@ def check_style_is_correct(src_file_list: List[str]) -> bool:
         result = subprocess.run(uncrustify_cmd, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, check=False)
         if result.returncode != 0:
-            print_err("Uncrustify returned " + str(result.returncode) +
-                      " correcting file " + src_file)
+            print_err(
+                f"Uncrustify returned {str(result.returncode)} correcting file {src_file}"
+            )
             return False
 
         # Uncrustify makes changes to the code and places the result in a new
         # file with the extension ".uncrustify". To get the changes (if any)
         # simply diff the 2 files.
-        diff_cmd = ["diff", "-u", src_file, src_file + ".uncrustify"]
+        diff_cmd = ["diff", "-u", src_file, f"{src_file}.uncrustify"]
         cp = subprocess.run(diff_cmd, check=False)
 
         if cp.returncode == 1:
-            print(src_file + " changed - code style is incorrect.")
+            print(f"{src_file} changed - code style is incorrect.")
             style_correct = False
         elif cp.returncode != 0:
             raise subprocess.CalledProcessError(cp.returncode, cp.args,
                                                 cp.stdout, cp.stderr)
 
         # Tidy up artifact
-        os.remove(src_file + ".uncrustify")
+        os.remove(f"{src_file}.uncrustify")
 
     return style_correct
 
@@ -156,16 +156,10 @@ def fix_style(src_file_list: List[str]) -> int:
     """
     if not fix_style_single_pass(src_file_list):
         return 1
-    if not fix_style_single_pass(src_file_list):
-        return 1
-
-    # Guard against future changes that cause the codebase to require
-    # more passes.
-    if not check_style_is_correct(src_file_list):
-        print_err("Code style still incorrect after second run of Uncrustify.")
-        return 1
-    else:
+    if check_style_is_correct(src_file_list):
         return 0
+    print_err("Code style still incorrect after second run of Uncrustify.")
+    return 1
 
 def main() -> int:
     """
@@ -173,10 +167,8 @@ def main() -> int:
     """
     uncrustify_version = get_uncrustify_version().strip()
     if UNCRUSTIFY_SUPPORTED_VERSION not in uncrustify_version:
-        print("Warning: Using unsupported Uncrustify version '" +
-              uncrustify_version + "'")
-        print("Note: The only supported version is " +
-              UNCRUSTIFY_SUPPORTED_VERSION)
+        print(f"Warning: Using unsupported Uncrustify version '{uncrustify_version}'")
+        print(f"Note: The only supported version is {UNCRUSTIFY_SUPPORTED_VERSION}")
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--fix', action='store_true',
@@ -198,8 +190,7 @@ def main() -> int:
     # We only check files that are known to git
     if args.subset or args.operands:
         src_files = [f for f in args.operands if f in covered]
-        skip_src_files = [f for f in args.operands if f not in covered]
-        if skip_src_files:
+        if skip_src_files := [f for f in args.operands if f not in covered]:
             print_skip(skip_src_files)
     else:
         src_files = list(covered)
@@ -207,13 +198,12 @@ def main() -> int:
     if args.fix:
         # Fix mode
         return fix_style(src_files)
-    else:
         # Check mode
-        if check_style_is_correct(src_files):
-            print("Checked {} files, style ok.".format(len(src_files)))
-            return 0
-        else:
-            return 1
+    if check_style_is_correct(src_files):
+        print(f"Checked {len(src_files)} files, style ok.")
+        return 0
+    else:
+        return 1
 
 if __name__ == '__main__':
     sys.exit(main())

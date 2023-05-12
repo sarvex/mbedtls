@@ -164,7 +164,7 @@ class AbiChecker:
     def check_abi_tools_are_installed():
         for command in ["abi-dumper", "abi-compliance-checker"]:
             if not shutil.which(command):
-                raise Exception("{} not installed, aborting".format(command))
+                raise Exception(f"{command} not installed, aborting")
 
     def _get_clean_worktree_for_git_revision(self, version):
         """Make a separate worktree with version.revision checked out.
@@ -172,9 +172,7 @@ class AbiChecker:
         git_worktree_path = tempfile.mkdtemp()
         if version.repository:
             self.log.debug(
-                "Checking out git worktree for revision {} from {}".format(
-                    version.revision, version.repository
-                )
+                f"Checking out git worktree for revision {version.revision} from {version.repository}"
             )
             fetch_output = subprocess.check_output(
                 [self.git_command, "fetch",
@@ -185,9 +183,7 @@ class AbiChecker:
             self.log.debug(fetch_output.decode("utf-8"))
             worktree_rev = "FETCH_HEAD"
         else:
-            self.log.debug("Checking out git worktree for revision {}".format(
-                version.revision
-            ))
+            self.log.debug(f"Checking out git worktree for revision {version.revision}")
             worktree_rev = version.revision
         worktree_output = subprocess.check_output(
             [self.git_command, "worktree", "add", "--detach",
@@ -201,7 +197,7 @@ class AbiChecker:
             cwd=git_worktree_path,
             stderr=subprocess.STDOUT
         ).decode("ascii").rstrip()
-        self.log.debug("Commit is {}".format(version.commit))
+        self.log.debug(f"Commit is {version.commit}")
         return git_worktree_path
 
     def _update_git_submodules(self, git_worktree_path, version):
@@ -262,7 +258,7 @@ class AbiChecker:
         if version.revision == version.commit:
             return version.revision
         else:
-            return "{} ({})".format(version.revision, version.commit)
+            return f"{version.revision} ({version.commit})"
 
     def _get_abi_dumps_from_shared_libraries(self, version):
         """Generate the ABI dumps for the specified git revision.
@@ -270,9 +266,8 @@ class AbiChecker:
         present in version.modules."""
         for mbed_module, module_path in version.modules.items():
             output_path = os.path.join(
-                self.report_dir, "{}-{}-{}.dump".format(
-                    mbed_module, version.revision, version.version
-                )
+                self.report_dir,
+                f"{mbed_module}-{version.revision}-{version.version}.dump",
             )
             abi_dump_command = [
                 "abi-dumper",
@@ -436,10 +431,8 @@ class AbiChecker:
         """Test if the library mbed_module has remained compatible.
         Append a message regarding compatibility to compatibility_report."""
         output_path = os.path.join(
-            self.report_dir, "{}-{}-{}.html".format(
-                mbed_module, self.old_version.revision,
-                self.new_version.revision
-            )
+            self.report_dir,
+            f"{mbed_module}-{self.old_version.revision}-{self.new_version.revision}.html",
         )
         try:
             subprocess.check_output(
@@ -450,22 +443,17 @@ class AbiChecker:
             if err.returncode != 1:
                 raise err
             if self.brief:
-                self.log.info(
-                    "Compatibility issues found for {}".format(mbed_module)
-                )
+                self.log.info(f"Compatibility issues found for {mbed_module}")
                 report_root = ET.fromstring(err.output.decode("utf-8"))
                 self._remove_extra_detail_from_report(report_root)
                 self.log.info(ET.tostring(report_root).decode("utf-8"))
             else:
                 self.can_remove_report_dir = False
                 compatibility_report.append(
-                    "Compatibility issues found for {}, "
-                    "for details see {}".format(mbed_module, output_path)
+                    f"Compatibility issues found for {mbed_module}, for details see {output_path}"
                 )
             return False
-        compatibility_report.append(
-            "No compatibility issues for {}".format(mbed_module)
-        )
+        compatibility_report.append(f"No compatibility issues for {mbed_module}")
         if not (self.keep_all_reports or self.brief):
             os.remove(output_path)
         return True
@@ -481,23 +469,15 @@ class AbiChecker:
         for test_data in sorted(missing):
             metadata = old_tests[test_data]
             compatibility_report.append(
-                'Test case from {} line {} "{}" has disappeared: {}'.format(
-                    metadata.filename, metadata.line_number,
-                    metadata.description, test_data
-                )
+                f'Test case from {metadata.filename} line {metadata.line_number} "{metadata.description}" has disappeared: {test_data}'
             )
         compatibility_report.append(
-            'FAIL: {}/{} storage format test cases have changed or disappeared.'.format(
-                len(missing), len(old_tests)
-            ) if missing else
-            'PASS: All {} storage format test cases are preserved.'.format(
-                len(old_tests)
-            )
+            f'FAIL: {len(missing)}/{len(old_tests)} storage format test cases have changed or disappeared.'
+            if missing
+            else f'PASS: All {len(old_tests)} storage format test cases are preserved.'
         )
         compatibility_report.append(
-            'Info: number of storage format tests cases: {} -> {}.'.format(
-                len(old_tests), len(new_tests)
-            )
+            f'Info: number of storage format tests cases: {len(old_tests)} -> {len(new_tests)}.'
         )
         return not missing
 
@@ -505,10 +485,9 @@ class AbiChecker:
         """Generate a report of the differences between the reference ABI
         and the new ABI. ABI dumps from self.old_version and self.new_version
         must be available."""
-        compatibility_report = ["Checking evolution from {} to {}".format(
-            self._pretty_revision(self.old_version),
-            self._pretty_revision(self.new_version)
-        )]
+        compatibility_report = [
+            f"Checking evolution from {self._pretty_revision(self.old_version)} to {self._pretty_revision(self.new_version)}"
+        ]
         compliance_return_code = 0
 
         if self.check_abi:
@@ -519,12 +498,12 @@ class AbiChecker:
                                                    compatibility_report):
                     compliance_return_code = 1
 
-        if self.check_storage_tests:
-            if not self._is_storage_format_compatible(
-                    self.old_version.storage_tests,
-                    self.new_version.storage_tests,
-                    compatibility_report):
-                compliance_return_code = 1
+        if self.check_storage_tests and not self._is_storage_format_compatible(
+            self.old_version.storage_tests,
+            self.new_version.storage_tests,
+            compatibility_report,
+        ):
+            compliance_return_code = 1
 
         for version in [self.old_version, self.new_version]:
             for mbed_module, mbed_module_dump in version.abi_dumps.items():
@@ -622,7 +601,7 @@ def run_main():
         )
         abi_args = parser.parse_args()
         if os.path.isfile(abi_args.report_dir):
-            print("Error: {} is not a directory".format(abi_args.report_dir))
+            print(f"Error: {abi_args.report_dir} is not a directory")
             parser.exit()
         old_version = SimpleNamespace(
             version="old",

@@ -53,11 +53,11 @@ class CategoryParseError(Exception):
     def __init__(self, line_offset, error_message):
         self.line_offset = line_offset
         self.error_message = error_message
-        super().__init__('{}: {}'.format(line_offset, error_message))
+        super().__init__(f'{line_offset}: {error_message}')
 
 class LostContent(Exception):
     def __init__(self, filename, line):
-        message = ('Lost content from {}: "{}"'.format(filename, line))
+        message = f'Lost content from {filename}: "{line}"'
         super().__init__(message)
 
 # The category names we use in the changelog.
@@ -136,8 +136,8 @@ class TextChangelogFormat(ChangelogFormat):
         m = re.search(cls._top_version_re, changelog_file_content)
         top_version_start = m.start(1)
         top_version_end = m.end(2)
-        top_version_title = m.group(1)
-        top_version_body = m.group(2)
+        top_version_title = m[1]
+        top_version_body = m[2]
         if cls.is_released_version(top_version_title):
             top_version_end = top_version_start
             top_version_title = cls._unreleased_version_text + '\n\n'
@@ -304,13 +304,7 @@ class EntryFileSortKey:
                                           '--follow',
                                           '--', filename])
         m = re.search('(.+)$', hashes.decode('ascii'))
-        if not m:
-            # The git output is empty. This means that the file was
-            # never checked in.
-            return None
-        # The last commit in the log is the oldest one, which is when the
-        # file was created.
-        return m.group(0)
+        return None if not m else m[0]
 
     @staticmethod
     def list_merges(some_hash, target, *options):
@@ -339,14 +333,7 @@ class EntryFileSortKey:
         # on the target branch. We want it in reverse order (oldest first).
         first_parents = cls.list_merges(some_hash, target,
                                         '--first-parent', '--reverse')
-        # Look for the oldest merge commit that's both on the direct path
-        # and directly on the target branch. That's the place where some_hash
-        # was merged on the target branch. See
-        # https://stackoverflow.com/questions/8475448/find-merge-commit-which-include-a-specific-commit
-        for commit in first_parents:
-            if commit in ancestry:
-                return commit
-        return None
+        return next((commit for commit in first_parents if commit in ancestry), None)
 
     @staticmethod
     def commit_timestamp(commit_id):
@@ -429,7 +416,7 @@ def finish_output(changelog, output_file, input_file, merged_files):
     else:
         # The output is a regular file. Write to a temporary file,
         # then move it into place atomically.
-        output_temp = output_file + '.tmp'
+        output_temp = f'{output_file}.tmp'
     changelog.write(output_temp)
     check_output(output_temp, input_file, merged_files)
     if output_temp != output_file:

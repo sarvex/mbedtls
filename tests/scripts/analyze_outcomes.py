@@ -27,11 +27,11 @@ class Results:
         sys.stderr.write((fmt + '\n').format(*args, **kwargs))
 
     def error(self, fmt, *args, **kwargs):
-        self.log('Error: ' + fmt, *args, **kwargs)
+        self.log(f'Error: {fmt}', *args, **kwargs)
         self.error_count += 1
 
     def warning(self, fmt, *args, **kwargs):
-        self.log('Warning: ' + fmt, *args, **kwargs)
+        self.log(f'Warning: {fmt}', *args, **kwargs)
         self.warning_count += 1
 
 class TestCaseOutcomes:
@@ -60,13 +60,13 @@ def execute_reference_driver_tests(ref_component, driver_component, outcome_file
     # If the outcome file already exists, we assume that the user wants to
     # perform the comparison analysis again without repeating the tests.
     if os.path.exists(outcome_file):
-        Results.log("Outcome file (" + outcome_file + ") already exists. " + \
-                    "Tests will be skipped.")
+        Results.log(
+            f"Outcome file ({outcome_file}) already exists. Tests will be skipped."
+        )
         return
 
-    shell_command = "tests/scripts/all.sh --outcome-file " + outcome_file + \
-                    " " + ref_component + " " + driver_component
-    Results.log("Running: " + shell_command)
+    shell_command = f"tests/scripts/all.sh --outcome-file {outcome_file} {ref_component} {driver_component}"
+    Results.log(f"Running: {shell_command}")
     ret_val = subprocess.run(shell_command.split(), check=False).returncode
 
     if ret_val != 0:
@@ -162,11 +162,12 @@ def do_analyze_driver_vs_reference(outcome_file, args):
     execute_reference_driver_tests(args['component_ref'], \
                                     args['component_driver'], outcome_file)
 
-    ignored_suites = ['test_suite_' + x for x in args['ignored_suites']]
+    ignored_suites = [f'test_suite_{x}' for x in args['ignored_suites']]
 
     outcomes = read_outcome_file(outcome_file)
-    Results.log("\n*** Analyze driver {} vs reference {} ***\n".format(
-        args['component_driver'], args['component_ref']))
+    Results.log(
+        f"\n*** Analyze driver {args['component_driver']} vs reference {args['component_ref']} ***\n"
+    )
     return analyze_driver_vs_reference(outcomes, args['component_ref'],
                                        args['component_driver'], ignored_suites,
                                        args['ignored_tests'])
@@ -316,13 +317,14 @@ def main():
 
             for task in tasks:
                 if task not in TASKS:
-                    Results.log('Error: invalid task: {}'.format(task))
+                    Results.log(f'Error: invalid task: {task}')
                     sys.exit(1)
 
         for task in TASKS:
-            if task in tasks:
-                if not TASKS[task]['test_function'](options.outcomes, TASKS[task]['args']):
-                    result = False
+            if task in tasks and not TASKS[task]['test_function'](
+                options.outcomes, TASKS[task]['args']
+            ):
+                result = False
 
         if result is False:
             sys.exit(1)

@@ -86,11 +86,9 @@ class BaseTest(metaclass=ABCMeta):
             Description for the test case.
         """
         if self.show_test_count:
-            return "{} #{} {}".format(
-                self.test_name, self.count, self.case_description
-                ).strip()
+            return f"{self.test_name} #{self.count} {self.case_description}".strip()
         else:
-            return "{} {}".format(self.test_name, self.case_description).strip()
+            return f"{self.test_name} {self.case_description}".strip()
 
 
     def create_test_case(self) -> test_case.TestCase:
@@ -163,7 +161,7 @@ class TestGenerator:
 
     def filename_for(self, basename: str) -> str:
         """The location of the data file with the specified base name."""
-        return posixpath.join(self.test_suite_directory, basename + '.data')
+        return posixpath.join(self.test_suite_directory, f'{basename}.data')
 
     def write_test_data_file(self, basename: str,
                              test_cases: Iterable[test_case.TestCase]) -> None:

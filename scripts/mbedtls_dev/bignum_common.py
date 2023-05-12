@@ -51,12 +51,10 @@ def hex_to_int(val: str) -> int:
 
     This is a superset of what is accepted by mbedtls_test_read_mpi_core().
     """
-    if val in ['', '-']:
-        return 0
-    return int(val, 16)
+    return 0 if val in {'', '-'} else int(val, 16)
 
 def quote_str(val: str) -> str:
-    return "\"{}\"".format(val)
+    return f'\"{val}\"'
 
 def bound_mpi(val: int, bits_in_limb: int) -> int:
     """First number exceeding number of limbs needed for given input value."""
@@ -151,10 +149,7 @@ class OperationCommon(test_data_generation.BaseTest):
     def format_arg(self, val: str) -> str:
         if self.input_style not in self.input_styles:
             raise ValueError("Unknown input style!")
-        if self.input_style == "variable":
-            return val
-        else:
-            return val.zfill(self.hex_digits)
+        return val if self.input_style == "variable" else val.zfill(self.hex_digits)
 
     def format_result(self, res: int) -> str:
         res_str = '{:x}'.format(res)
@@ -263,7 +258,7 @@ class ModulusRepresentation(enum.Enum):
 
     def symbol(self) -> str:
         """The C symbol for this representation selector."""
-        return 'MBEDTLS_MPI_MOD_REP_' + self.name
+        return f'MBEDTLS_MPI_MOD_REP_{self.name}'
 
     @classmethod
     def supported_representations(cls) -> List['ModulusRepresentation']:
@@ -300,8 +295,7 @@ class ModOperationCommon(OperationCommon):
         elif rep is ModulusRepresentation.OPT_RED:
             return canonical
         else:
-            raise ValueError('Modulus representation not supported: {}'
-                             .format(rep.name))
+            raise ValueError(f'Modulus representation not supported: {rep.name}')
 
     @property
     def boundary(self) -> int:
@@ -344,9 +338,7 @@ class ModOperationCommon(OperationCommon):
             return False
         if self.disallow_zero_a and self.int_a == 0:
             return False
-        if self.arity == 2 and self.int_b >= self.int_n:
-            return False
-        return True
+        return self.arity != 2 or self.int_b < self.int_n
 
     def description(self) -> str:
         """Generate a description for the test case.

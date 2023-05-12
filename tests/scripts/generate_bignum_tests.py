@@ -98,14 +98,9 @@ class BignumOperation(bignum_common.OperationCommon, BignumTarget,
         generated to provide some context to the test case.
         """
         if not self.case_description:
-            self.case_description = "{} {} {}".format(
-                self.value_description(self.arg_a),
-                self.symbol,
-                self.value_description(self.arg_b)
-            )
-            description_suffix = self.description_suffix()
-            if description_suffix:
-                self.case_description += " " + description_suffix
+            self.case_description = f"{self.value_description(self.arg_a)} {self.symbol} {self.value_description(self.arg_b)}"
+            if description_suffix := self.description_suffix():
+                self.case_description += f" {description_suffix}"
         return super().description()
 
     @staticmethod
@@ -130,7 +125,7 @@ class BignumOperation(bignum_common.OperationCommon, BignumTarget,
         if val[0] == "0":
             tmp += " with leading zero limb"
         elif len(val) > 10:
-            tmp = "large " + tmp
+            tmp = f"large {tmp}"
         return tmp
 
 
@@ -185,11 +180,11 @@ class BignumAdd(BignumOperation):
     def description_suffix(self) -> str:
         if (self.int_a >= 0 and self.int_b >= 0):
             return "" # obviously positive result or 0
-        if (self.int_a <= 0 and self.int_b <= 0):
-            return "" # obviously negative result or 0
-        # The sign of the result is not obvious, so indicate it
-        return ", result{}0".format('>' if self._result > 0 else
-                                    '<' if self._result < 0 else '=')
+        return (
+            ""
+            if (self.int_a <= 0 and self.int_b <= 0)
+            else f", result{'>' if self._result > 0 else '<' if self._result < 0 else '='}0"
+        )
 
     def result(self) -> List[str]:
         return [bignum_common.quote_str("{:x}".format(self._result))]

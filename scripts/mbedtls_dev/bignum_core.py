@@ -54,13 +54,14 @@ class BignumCoreShiftR(BignumCoreTarget, test_data_generation.BaseTest):
         self.result = bignum_common.hex_to_int(input_hex) >> count
 
     def arguments(self) -> List[str]:
-        return ['"{}"'.format(self.input_hex),
-                str(self.shift_count),
-                '"{:0{}x}"'.format(self.result, len(self.input_hex))]
+        return [
+            f'"{self.input_hex}"',
+            str(self.shift_count),
+            '"{:0{}x}"'.format(self.result, len(self.input_hex)),
+        ]
 
     def description(self) -> str:
-        return 'Core shift {} >> {}'.format(self.number_description,
-                                            self.shift_count)
+        return f'Core shift {self.number_description} >> {self.shift_count}'
 
     @classmethod
     def generate_function_tests(cls) -> Iterator[test_case.TestCase]:
@@ -93,11 +94,7 @@ class BignumCoreCTLookup(BignumCoreTarget, test_data_generation.BaseTest):
         return [str(self.bitsize), str(self.window_size)]
 
     def description(self) -> str:
-        return '{} - {} MPI with {} bit window'.format(
-            BignumCoreCTLookup.test_name,
-            self.bitsize_description,
-            self.window_size
-            )
+        return f'{BignumCoreCTLookup.test_name} - {self.bitsize_description} MPI with {self.window_size} bit window'
 
     @classmethod
     def generate_function_tests(cls) -> Iterator[test_case.TestCase]:
@@ -192,8 +189,8 @@ class BignumCoreMLA(BignumCoreTarget, bignum_common.OperationCommon):
     def description(self) -> str:
         """Override and add the additional scalar."""
         if not self.case_description:
-            self.case_description = "0x{} + 0x{} * 0x{}".format(
-                self.arg_a, self.arg_b, self.arg_scalar
+            self.case_description = (
+                f"0x{self.arg_a} + 0x{self.arg_b} * 0x{self.arg_scalar}"
             )
         return super().description()
 
@@ -617,9 +614,7 @@ class BignumCoreMontmul(BignumCoreTarget, test_data_generation.BaseTest):
         self.limbs_an8 = bignum_common.limbs_mpi(self.int_n, 64)
 
         if limbs_a4 > self.limbs_an4 or limbs_a8 > self.limbs_an8:
-            raise Exception("Limbs of input A ({}) exceeds N ({})".format(
-                self.arg_a, self.arg_n
-            ))
+            raise Exception(f"Limbs of input A ({self.arg_a}) exceeds N ({self.arg_n})")
 
     def arguments(self) -> List[str]:
         return [
@@ -763,7 +758,7 @@ def mpi_modmul_case_generate() -> None:
                 continue
             cases[a] = b
             if description:
-                out_description = "0x{} {}".format(mod_read, description)
+                out_description = f"0x{mod_read} {description}"
             elif i == 0 and len(mod) > 1 and mod in primes:
                 out_description = "(0x{} is prime)"
             else:
@@ -793,7 +788,7 @@ class BignumCoreExpMod(BignumCoreTarget, bignum_common.ModOperationCommon):
     def is_valid(self) -> bool:
         # The base needs to be canonical, but the exponent can be larger than
         # the modulus (see for example exponent blinding)
-        return bool(self.int_a < self.int_n)
+        return self.int_a < self.int_n
 
 
 class BignumCoreSubInt(BignumCoreTarget, bignum_common.OperationCommon):
@@ -807,9 +802,7 @@ class BignumCoreSubInt(BignumCoreTarget, bignum_common.OperationCommon):
     @property
     def is_valid(self) -> bool:
         # This is "sub int", so b is only one limb
-        if bignum_common.limbs_mpi(self.int_b, self.bits_in_limb) > 1:
-            return False
-        return True
+        return bignum_common.limbs_mpi(self.int_b, self.bits_in_limb) <= 1
 
     # Overriding because we don't want leading zeros on b
     @property

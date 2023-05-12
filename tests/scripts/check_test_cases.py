@@ -107,7 +107,7 @@ state may override this method.
                 m = re.match(br'\s*run_test\s+"((?:[^\\"]|\\.)*)"', line)
                 if not m:
                     continue
-                description = m.group(1)
+                description = m[1]
                 self.process_test_case(descriptions,
                                        file_name, line_number, description)
 
@@ -120,8 +120,7 @@ state may override this method.
             tests_dir = '.'
         elif os.path.isdir('../suites'):
             tests_dir = '..'
-        directories = [tests_dir]
-        return directories
+        return [tests_dir]
 
     def walk_all(self):
         """Iterate over all named test cases."""
@@ -182,9 +181,12 @@ class DescriptionChecker(TestDescriptionExplorer):
                           seen[description])
             return
         if re.search(br'[\t;]', description):
-            results.error(file_name, line_number,
-                          'Forbidden character \'{}\' in description',
-                          re.search(br'[\t;]', description).group(0).decode('ascii'))
+            results.error(
+                file_name,
+                line_number,
+                'Forbidden character \'{}\' in description',
+                re.search(br'[\t;]', description)[0].decode('ascii'),
+            )
         if re.search(br'[^ -~]', description):
             results.error(file_name, line_number,
                           'Non-ASCII character in description')
@@ -214,8 +216,9 @@ def main():
     checker = DescriptionChecker(results)
     checker.walk_all()
     if (results.warnings or results.errors) and not options.quiet:
-        sys.stderr.write('{}: {} errors, {} warnings\n'
-                         .format(sys.argv[0], results.errors, results.warnings))
+        sys.stderr.write(
+            f'{sys.argv[0]}: {results.errors} errors, {results.warnings} warnings\n'
+        )
     sys.exit(1 if results.errors else 0)
 
 if __name__ == '__main__':

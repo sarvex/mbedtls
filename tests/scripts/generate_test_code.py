@@ -163,6 +163,7 @@ __MBEDTLS_TEST_TEMPLATE__PLATFORM_CODE
 """
 
 
+
 import io
 import os
 import re
@@ -188,9 +189,7 @@ C_IDENTIFIER_REGEX = r'!?[a-z_][a-z0-9_]*'
 CONDITION_OPERATOR_REGEX = r'[!=]=|[<>]=?'
 # forbid 0ddd which might be accidentally octal or accidentally decimal
 CONDITION_VALUE_REGEX = r'[-+]?(0x[0-9a-f]+|0|[1-9][0-9]*)'
-CONDITION_REGEX = r'({})(?:\s*({})\s*({}))?$'.format(C_IDENTIFIER_REGEX,
-                                                     CONDITION_OPERATOR_REGEX,
-                                                     CONDITION_VALUE_REGEX)
+CONDITION_REGEX = f'({C_IDENTIFIER_REGEX})(?:\s*({CONDITION_OPERATOR_REGEX})\s*({CONDITION_VALUE_REGEX}))?$'
 TEST_FUNCTION_VALIDATION_REGEX = r'\s*void\s+(?P<func_name>\w+)\s*\('
 INT_CHECK_REGEX = r'int\s+.*'
 CHAR_CHECK_REGEX = r'char\s*\*\s*.*'
@@ -289,10 +288,9 @@ def gen_dependencies_one_line(dependencies):
     :param dependencies: List of dependencies.
     :return: Preprocessor check code
     """
-    defines = '#if ' if dependencies else ''
-    defines += ' && '.join(['%sdefined(%s)' % (x, y) for x, y in map(
-        split_dep, dependencies)])
-    return defines
+    return ('#if ' if dependencies else '') + ' && '.join(
+        [f'{x}defined({y})' for x, y in map(split_dep, dependencies)]
+    )
 
 
 def gen_function_wrapper(name, local_vars, args_dispatch):
@@ -306,18 +304,18 @@ def gen_function_wrapper(name, local_vars, args_dispatch):
            Ex: ['(char *)params[0]', '*((int *)params[1])']
     :return: Test function wrapper.
     """
-    # Then create the wrapper
-    wrapper = '''
+    return '''
 void {name}_wrapper( void ** params )
 {{
 {unused_params}{locals}
     {name}( {args} );
 }}
-'''.format(name=name,
-           unused_params='' if args_dispatch else '    (void)params;\n',
-           args=', '.join(args_dispatch),
-           locals=local_vars)
-    return wrapper
+'''.format(
+        name=name,
+        unused_params='' if args_dispatch else '    (void)params;\n',
+        args=', '.join(args_dispatch),
+        locals=local_vars,
+    )
 
 
 def gen_dispatch(name, dependencies):
@@ -335,19 +333,21 @@ def gen_dispatch(name, dependencies):
     """
     if dependencies:
         preprocessor_check = gen_dependencies_one_line(dependencies)
-        dispatch_code = '''
+        return '''
 {preprocessor_check}
     {name}_wrapper,
 #else
     NULL,
 #endif
-'''.format(preprocessor_check=preprocessor_check, name=name)
+'''.format(
+            preprocessor_check=preprocessor_check, name=name
+        )
     else:
-        dispatch_code = '''
+        return '''
     {name}_wrapper,
-'''.format(name=name)
-
-    return dispatch_code
+'''.format(
+            name=name
+        )
 
 
 def parse_until_pattern(funcs_f, end_regex):
@@ -365,8 +365,9 @@ def parse_until_pattern(funcs_f, end_regex):
             break
         headers += line
     else:
-        raise GeneratorInputError("file: %s - end pattern [%s] not found!" %
-                                  (funcs_f.name, end_regex))
+        raise GeneratorInputError(
+            f"file: {funcs_f.name} - end pattern [{end_regex}] not found!"
+        )
 
     return headers
 
@@ -379,7 +380,7 @@ def validate_dependency(dependency):
     """
     dependency = dependency.strip()
     if not re.match(CONDITION_REGEX, dependency, re.I):
-        raise GeneratorInputError('Invalid dependency %s' % dependency)
+        raise GeneratorInputError(f'Invalid dependency {dependency}')
     return dependency
 
 
@@ -391,8 +392,7 @@ def parse_dependencies(inp_str):
     :param inp_str: Input string with macros delimited by ':'.
     :return: list of dependencies
     """
-    dependencies = list(map(validate_dependency, inp_str.split(':')))
-    return dependencies
+    return list(map(validate_dependency, inp_str.split(':')))
 
 
 def parse_suite_dependencies(funcs_f):
@@ -407,10 +407,9 @@ def parse_suite_dependencies(funcs_f):
     """
     dependencies = []
     for line in funcs_f:
-        match = re.search(DEPENDENCY_REGEX, line.strip())
-        if match:
+        if match := re.search(DEPENDENCY_REGEX, line.strip()):
             try:
-                dependencies = parse_dependencies(match.group('dependencies'))
+                dependencies = parse_dependencies(match['dependencies'])
             except GeneratorInputError as error:
                 raise GeneratorInputError(
                     str(error) + " - %s:%d" % (funcs_f.name, funcs_f.line_no))
@@ -435,11 +434,9 @@ def parse_function_dependencies(line):
     """
     dependencies = []
     match = re.search(BEGIN_CASE_REGEX, line)
-    dep_str = match.group('depends_on')
-    if dep_str:
-        match = re.search(DEPENDENCY_REGEX, dep_str)
-        if match:
-            dependencies += parse_dependencies(match.group('dependencies'))
+    if dep_str := match['depends_on']:
+        if match := re.search(DEPENDENCY_REGEX, dep_str):
+            dependencies += parse_dependencies(match['dependencies'])
 
     return dependencies
 
@@ -574,9 +571,9 @@ def parse_function_code(funcs_f, dependencies, suite_dependencies):
     :param suite_dependencies: List of test suite dependencies
     :return: Function name, arguments, function code and dispatch code.
     """
-    line_directive = '#line %d "%s"\n' % (funcs_f.line_no + 1, funcs_f.name)
     code = ''
     has_exit_label = False
+    line_directive = '#line %d "%s"\n' % (funcs_f.line_no + 1, funcs_f.name)
     for line in funcs_f:
         # Check function signature. Function signature may be split
         # across multiple lines. Here we try to find the start of
@@ -584,11 +581,13 @@ def parse_function_code(funcs_f, dependencies, suite_dependencies):
         # detect function start.
         line = skip_comments(line, funcs_f)
         up_to_arg_list_start = code + line[:line.find('(') + 1]
-        match = re.match(TEST_FUNCTION_VALIDATION_REGEX,
-                         up_to_arg_list_start.replace('\n', ' '), re.I)
-        if match:
+        if match := re.match(
+            TEST_FUNCTION_VALIDATION_REGEX,
+            up_to_arg_list_start.replace('\n', ' '),
+            re.I,
+        ):
             # check if we have full signature i.e. split in more lines
-            name = match.group('func_name')
+            name = match['func_name']
             if not re.match(FUNCTION_ARG_LIST_END_REGEX, line):
                 for lin in funcs_f:
                     line += skip_comments(lin, funcs_f)
@@ -600,12 +599,11 @@ def parse_function_code(funcs_f, dependencies, suite_dependencies):
             break
         code += line
     else:
-        raise GeneratorInputError("file: %s - Test functions not found!" %
-                                  funcs_f.name)
+        raise GeneratorInputError(f"file: {funcs_f.name} - Test functions not found!")
 
     # Prefix test function name with 'test_'
-    code = code.replace(name, 'test_' + name, 1)
-    name = 'test_' + name
+    code = code.replace(name, f'test_{name}', 1)
+    name = f'test_{name}'
 
     for line in funcs_f:
         if re.search(END_CASE_REGEX, line):
@@ -615,8 +613,9 @@ def parse_function_code(funcs_f, dependencies, suite_dependencies):
                 re.search(EXIT_LABEL_REGEX, line.strip()) is not None
         code += line
     else:
-        raise GeneratorInputError("file: %s - end case pattern [%s] not "
-                                  "found!" % (funcs_f.name, END_CASE_REGEX))
+        raise GeneratorInputError(
+            f"file: {funcs_f.name} - end case pattern [{END_CASE_REGEX}] not found!"
+        )
 
     code = line_directive + code
     code = generate_function_code(name, code, local_vars, args_dispatch,
@@ -733,12 +732,9 @@ def parse_test_data(data_f):
             name = line
             state = __state_read_args
         elif state == __state_read_args:
-            # Check dependencies
-            match = re.search(DEPENDENCY_REGEX, line)
-            if match:
+            if match := re.search(DEPENDENCY_REGEX, line):
                 try:
-                    dependencies = parse_dependencies(
-                        match.group('dependencies'))
+                    dependencies = parse_dependencies(match['dependencies'])
                 except GeneratorInputError as error:
                     raise GeneratorInputError(
                         str(error) + " - %s:%d" %
@@ -775,13 +771,13 @@ def gen_dep_check(dep_id, dep):
 
     dependency = re.match(CONDITION_REGEX, dep, re.I)
     if not dependency:
-        raise GeneratorInputError('Invalid dependency %s' % dep)
+        raise GeneratorInputError(f'Invalid dependency {dep}')
 
-    _defined = '' if dependency.group(2) else 'defined'
-    _cond = dependency.group(2) if dependency.group(2) else ''
-    _value = dependency.group(3) if dependency.group(3) else ''
+    _defined = '' if dependency[2] else 'defined'
+    _cond = dependency[2] if dependency[2] else ''
+    _value = dependency[3] if dependency[3] else ''
 
-    dep_check = '''
+    return '''
         case {id}:
             {{
 #if {_not}{_defined}({macro}{_cond}{_value})
@@ -790,10 +786,14 @@ def gen_dep_check(dep_id, dep):
                 ret = DEPENDENCY_NOT_SUPPORTED;
 #endif
             }}
-            break;'''.format(_not=_not, _defined=_defined,
-                             macro=dependency.group(1), id=dep_id,
-                             _cond=_cond, _value=_value)
-    return dep_check
+            break;'''.format(
+        _not=_not,
+        _defined=_defined,
+        macro=dependency[1],
+        id=dep_id,
+        _cond=_cond,
+        _value=_value,
+    )
 
 
 def gen_expression_check(exp_id, exp):
@@ -810,13 +810,14 @@ def gen_expression_check(exp_id, exp):
                                   "integer.")
     if not exp:
         raise GeneratorInputError("Expression should not be an empty string.")
-    exp_code = '''
+    return '''
         case {exp_id}:
             {{
                 *out_value = {expression};
             }}
-            break;'''.format(exp_id=exp_id, expression=exp)
-    return exp_code
+            break;'''.format(
+        exp_id=exp_id, expression=exp
+    )
 
 
 def write_dependencies(out_data_f, test_dependencies, unique_dependencies):
@@ -841,7 +842,7 @@ def write_dependencies(out_data_f, test_dependencies, unique_dependencies):
                 dep_check_code += gen_dep_check(dep_id, dep)
             else:
                 dep_id = unique_dependencies.index(dep)
-            out_data_f.write(':' + str(dep_id))
+            out_data_f.write(f':{str(dep_id)}')
         out_data_f.write('\n')
     return dep_check_code
 
@@ -878,7 +879,7 @@ def write_parameters(out_data_f, test_args, func_args, unique_expressions):
                 val = exp_id
             else:
                 val = unique_expressions.index(val)
-        out_data_f.write(':' + typ + ':' + str(val))
+        out_data_f.write(f':{typ}:{str(val)}')
     out_data_f.write('\n')
     return expression_code
 
@@ -927,12 +928,11 @@ def gen_from_test_data(data_f, out_data_f, func_info, suite_dependencies):
     :param suite_dependencies: Test suite dependencies
     :return: Returns dependency and expression check code
     """
-    unique_dependencies = []
     unique_expressions = []
     dep_check_code = ''
     expression_code = ''
-    for test_name, function_name, test_dependencies, test_args in \
-            parse_test_data(data_f):
+    unique_dependencies = []
+    for test_name, function_name, test_dependencies, test_args in parse_test_data(data_f):
         out_data_f.write(test_name + '\n')
 
         # Write dependencies
@@ -940,18 +940,17 @@ def gen_from_test_data(data_f, out_data_f, func_info, suite_dependencies):
                                              unique_dependencies)
 
         # Write test function name
-        test_function_name = 'test_' + function_name
+        test_function_name = f'test_{function_name}'
         if test_function_name not in func_info:
-            raise GeneratorInputError("Function %s not found!" %
-                                      test_function_name)
+            raise GeneratorInputError(f"Function {test_function_name} not found!")
         func_id, func_args = func_info[test_function_name]
         out_data_f.write(str(func_id))
 
         # Write parameters
         if len(test_args) != len(func_args):
-            raise GeneratorInputError("Invalid number of arguments in test "
-                                      "%s. See function %s signature." %
-                                      (test_name, function_name))
+            raise GeneratorInputError(
+                f"Invalid number of arguments in test {test_name}. See function {function_name} signature."
+            )
         expression_code += write_parameters(out_data_f, test_args, func_args,
                                             unique_expressions)
 
@@ -1108,7 +1107,7 @@ def generate_code(**input_info):
                        ('Helpers code file', helpers_file),
                        ('Suites dir', suites_dir)]:
         if not os.path.exists(path):
-            raise IOError("ERROR: %s [%s] not found!" % (name, path))
+            raise IOError(f"ERROR: {name} [{path}] not found!")
 
     snippets = {'generator_script': os.path.basename(__file__)}
     read_code_from_input_files(platform_file, helpers_file,
@@ -1177,8 +1176,8 @@ def main():
     data_file_name = os.path.basename(args.data_file)
     data_name = os.path.splitext(data_file_name)[0]
 
-    out_c_file = os.path.join(args.out_dir, data_name + '.c')
-    out_data_file = os.path.join(args.out_dir, data_name + '.datax')
+    out_c_file = os.path.join(args.out_dir, f'{data_name}.c')
+    out_data_file = os.path.join(args.out_dir, f'{data_name}.datax')
 
     out_c_file_dir = os.path.dirname(out_c_file)
     out_data_file_dir = os.path.dirname(out_data_file)
@@ -1197,5 +1196,4 @@ if __name__ == "__main__":
     try:
         main()
     except GeneratorInputError as err:
-        sys.exit("%s: input error: %s" %
-                 (os.path.basename(sys.argv[0]), str(err)))
+        sys.exit(f"{os.path.basename(sys.argv[0])}: input error: {str(err)}")

@@ -60,13 +60,14 @@ def run_c(type_word: str,
         cast_to = 'unsigned long'
         printf_format = '0x%08lx'
     return c_build_helper.get_c_expression_values(
-        cast_to, printf_format,
+        cast_to,
+        printf_format,
         expressions,
-        caller='test_psa_constant_names.py for {} values'.format(type_word),
+        caller=f'test_psa_constant_names.py for {type_word} values',
         file_label=type_word,
         header='#include <psa/crypto.h>',
         include_path=include_path,
-        keep_c=keep_c
+        keep_c=keep_c,
     )
 
 NORMALIZE_STRIP_RE = re.compile(r'\s+')
@@ -89,9 +90,7 @@ def is_simplifiable(expr: str) -> bool:
     the output will be the simple form. Therefore they must be excluded
     from testing.
     """
-    if ALG_TRUNCATED_TO_SELF_RE.match(expr):
-        return True
-    return False
+    return bool(ALG_TRUNCATED_TO_SELF_RE.match(expr))
 
 def collect_values(inputs: InputsForTest,
                    type_word: str,
@@ -138,7 +137,7 @@ class Tests:
         self.count += len(expressions)
         for expr, value, output in zip(expressions, values, outputs):
             if self.options.show:
-                sys.stdout.write('{} {}\t{}\n'.format(type_word, value, output))
+                sys.stdout.write(f'{type_word} {value}\t{output}\n')
             if normalize(expr) != normalize(output):
                 self.errors.append(self.Error(type=type_word,
                                               expression=expr,
@@ -158,12 +157,12 @@ class Tests:
         Also write a total.
         """
         for error in self.errors:
-            out.write('For {} "{}", got "{}" (value: {})\n'
-                      .format(error.type, error.expression,
-                              error.output, error.value))
-        out.write('{} test cases'.format(self.count))
+            out.write(
+                f'For {error.type} "{error.expression}", got "{error.output}" (value: {error.value})\n'
+            )
+        out.write(f'{self.count} test cases')
         if self.errors:
-            out.write(', {} FAIL\n'.format(len(self.errors)))
+            out.write(f', {len(self.errors)} FAIL\n')
         else:
             out.write(' PASS\n')
 

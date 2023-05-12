@@ -77,7 +77,7 @@ class Statuses:
             fdata = self.functions[function]
             names = [self.status_names[value] for value in fdata.keys()]
             for name in sorted(names):
-                sys.stdout.write('{} {}\n'.format(function, name))
+                sys.stdout.write(f'{function} {name}\n')
 
 def collect_status_logs(options):
     """Build and run unit tests and report observed function return statuses.
@@ -119,16 +119,18 @@ def main():
     parser.add_argument('--clean-before',
                         action='store_true',
                         help='Run "make clean" before regenerating the log file)')
-    parser.add_argument('--log-file', metavar='FILE',
-                        default=DEFAULT_STATUS_LOG_FILE,
-                        help='Log file location (default: {})'.format(
-                            DEFAULT_STATUS_LOG_FILE
-                        ))
-    parser.add_argument('--psa-constant-names', metavar='PROGRAM',
-                        default=DEFAULT_PSA_CONSTANT_NAMES,
-                        help='Path to psa_constant_names (default: {})'.format(
-                            DEFAULT_PSA_CONSTANT_NAMES
-                        ))
+    parser.add_argument(
+        '--log-file',
+        metavar='FILE',
+        default=DEFAULT_STATUS_LOG_FILE,
+        help=f'Log file location (default: {DEFAULT_STATUS_LOG_FILE})',
+    )
+    parser.add_argument(
+        '--psa-constant-names',
+        metavar='PROGRAM',
+        default=DEFAULT_PSA_CONSTANT_NAMES,
+        help=f'Path to psa_constant_names (default: {DEFAULT_PSA_CONSTANT_NAMES})',
+    )
     parser.add_argument('--use-existing-log', '-e',
                         action='store_true',
                         help='Don\'t regenerate the log file if it exists')

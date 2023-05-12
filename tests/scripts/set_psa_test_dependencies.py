@@ -185,15 +185,7 @@ def keep_manual_dependencies(file_name, function_name, arguments):
     """Declare test functions with unusual dependencies here."""
     # If there are no arguments, we can't do any useful work. Assume that if
     # there are dependencies, they are warranted.
-    if not arguments:
-        return True
-    # When PSA_ERROR_NOT_SUPPORTED is expected, usually, at least one of the
-    # constants mentioned in the test should not be supported. It isn't
-    # possible to determine which one in a systematic way. So let the programmer
-    # decide.
-    if arguments[-1] == 'PSA_ERROR_NOT_SUPPORTED':
-        return True
-    return False
+    return True if not arguments else arguments[-1] == 'PSA_ERROR_NOT_SUPPORTED'
 
 def process_data_stanza(stanza, file_name, test_case_number):
     """Update PSA crypto dependencies in one Mbed TLS test case.
@@ -210,11 +202,13 @@ def process_data_stanza(stanza, file_name, test_case_number):
     # function-and-arguments.
     content_matches = list(re.finditer(r'^[\t ]*([^\t #].*)$', stanza, re.M))
     if len(content_matches) < 2:
-        raise Exception('Not enough content lines in paragraph {} in {}'
-                        .format(test_case_number, file_name))
+        raise Exception(
+            f'Not enough content lines in paragraph {test_case_number} in {file_name}'
+        )
     if len(content_matches) > 3:
-        raise Exception('Too many content lines in paragraph {} in {}'
-                        .format(test_case_number, file_name))
+        raise Exception(
+            f'Too many content lines in paragraph {test_case_number} in {file_name}'
+        )
     arguments = content_matches[-1].group(0).split(':')
     function_name = arguments.pop(0)
     if keep_manual_dependencies(file_name, function_name, arguments):
@@ -232,14 +226,14 @@ def process_data_stanza(stanza, file_name, test_case_number):
         text_before = stanza[:dependencies_match.start()]
         text_after = stanza[dependencies_match.end():]
         old_dependencies = dependencies_match.group(0).split(':')
-        dependencies_leader = old_dependencies.pop(0) + ':'
+        dependencies_leader = f'{old_dependencies.pop(0)}:'
         if dependencies_leader != 'depends_on:':
-            raise Exception('Next-to-last line does not start with "depends_on:"'
-                            ' in paragraph {} in {}'
-                            .format(test_case_number, file_name))
-    new_dependencies = updated_dependencies(file_name, function_name, arguments,
-                                            old_dependencies)
-    if new_dependencies:
+            raise Exception(
+                f'Next-to-last line does not start with "depends_on:" in paragraph {test_case_number} in {file_name}'
+            )
+    if new_dependencies := updated_dependencies(
+        file_name, function_name, arguments, old_dependencies
+    ):
         stanza = (text_before +
                   dependencies_leader + ':'.join(new_dependencies) +
                   text_after)
@@ -267,8 +261,8 @@ def update_file(file_name, old_content, new_content):
     """
     if new_content == old_content:
         return
-    backup = file_name + '.bak'
-    tmp = file_name + '.tmp'
+    backup = f'{file_name}.bak'
+    tmp = f'{file_name}.tmp'
     with open(tmp, 'w', encoding='utf-8') as new_file:
         new_file.write(new_content)
     os.replace(file_name, backup)
@@ -284,8 +278,7 @@ def process_file(file_name):
     if file_name.endswith('.data'):
         new_content = process_data_file(file_name, old_content)
     else:
-        raise Exception('File type not recognized: {}'
-                        .format(file_name))
+        raise Exception(f'File type not recognized: {file_name}')
     update_file(file_name, old_content, new_content)
 
 def main(args):

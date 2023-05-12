@@ -117,9 +117,7 @@ class Problem(abc.ABC): # pylint: disable=too-few-public-methods
         """
         Unified string representation method for all Problems.
         """
-        if self.__class__.quiet:
-            return self.quiet_output()
-        return self.verbose_output()
+        return self.quiet_output() if self.__class__.quiet else self.verbose_output()
 
     @abc.abstractmethod
     def quiet_output(self):
@@ -242,17 +240,21 @@ class CodeParser():
         """
         self.log.info("Parsing source code...")
         self.log.debug(
-            "The following files are excluded from the search: {}"
-            .format(str(self.excluded_files))
+            f"The following files are excluded from the search: {str(self.excluded_files)}"
         )
 
-        all_macros = {"public": [], "internal": [], "private":[]}
-        all_macros["public"] = self.parse_macros([
-            "include/mbedtls/*.h",
-            "include/psa/*.h",
-            "3rdparty/everest/include/everest/everest.h",
-            "3rdparty/everest/include/everest/x25519.h"
-        ])
+        all_macros = {
+            "internal": [],
+            "private": [],
+            "public": self.parse_macros(
+                [
+                    "include/mbedtls/*.h",
+                    "include/psa/*.h",
+                    "3rdparty/everest/include/everest/everest.h",
+                    "3rdparty/everest/include/everest/x25519.h",
+                ]
+            ),
+        }
         all_macros["internal"] = self.parse_macros([
             "library/*.h",
             "tests/include/test/drivers/*.h",
@@ -320,10 +322,7 @@ class CodeParser():
         """Whether the given file path is excluded."""
         # exclude_wildcards may be None. Also, consider the global exclusions.
         exclude_wildcards = (exclude_wildcards or []) + self.excluded_files
-        for pattern in exclude_wildcards:
-            if fnmatch.fnmatch(path, pattern):
-                return True
-        return False
+        return any(fnmatch.fnmatch(path, pattern) for pattern in exclude_wildcards)
 
     def get_all_files(self, include_wildcards, exclude_wildcards):
         """
@@ -373,8 +372,11 @@ class CodeParser():
         for include_wildcard in include_wildcards:
             accumulator = accumulator.union(glob.iglob(include_wildcard))
 
-        return list(path for path in accumulator
-                    if not self.is_file_excluded(path, exclude_wildcards))
+        return [
+            path
+            for path in accumulator
+            if not self.is_file_excluded(path, exclude_wildcards)
+        ]
 
     def parse_macros(self, include, exclude=None):
         """
@@ -392,23 +394,23 @@ class CodeParser():
         )
 
         files = self.get_included_files(include, exclude)
-        self.log.debug("Looking for macros in {} files".format(len(files)))
+        self.log.debug(f"Looking for macros in {len(files)} files")
 
         macros = []
         for header_file in files:
             with open(header_file, "r", encoding="utf-8") as header:
                 for line_no, line in enumerate(header):
-                    for macro in macro_regex.finditer(line):
-                        if macro.group("macro").startswith(exclusions):
-                            continue
-
-                        macros.append(Match(
+                    macros.extend(
+                        Match(
                             header_file,
                             line,
                             line_no,
                             macro.span("macro"),
-                            macro.group("macro")))
-
+                            macro.group("macro"),
+                        )
+                        for macro in macro_regex.finditer(line)
+                        if not macro.group("macro").startswith(exclusions)
+                    )
         return macros
 
     def parse_mbed_psa_words(self, include, exclude=None):
@@ -427,10 +429,7 @@ class CodeParser():
         exclusions = re.compile(r"// *no-check-names|#error")
 
         files = self.get_included_files(include, exclude)
-        self.log.debug(
-            "Looking for MBED|PSA words in {} files"
-            .format(len(files))
-        )
+        self.log.debug(f"Looking for MBED|PSA words in {len(files)} files")
 
         mbed_psa_words = []
         for filename in files:
@@ -439,14 +438,10 @@ class CodeParser():
                     if exclusions.search(line):
                         continue
 
-                    for name in mbed_regex.finditer(line):
-                        mbed_psa_words.append(Match(
-                            filename,
-                            line,
-                            line_no,
-                            name.span(0),
-                            name.group(0)))
-
+                    mbed_psa_words.extend(
+                        Match(filename, line, line_no, name.span(0), name.group(0))
+                        for name in mbed_regex.finditer(line)
+                    )
         return mbed_psa_words
 
     def parse_enum_consts(self, include, exclude=None):
@@ -460,7 +455,7 @@ class CodeParser():
         Returns a List of Match objects for the findings.
         """
         files = self.get_included_files(include, exclude)
-        self.log.debug("Looking for enum consts in {} files".format(len(files)))
+        self.log.debug(f"Looking for enum consts in {len(files)} files")
 
         # Emulate a finite state machine to parse enum declarations.
         # OUTSIDE_KEYWORD = outside the enum keyword
@@ -471,15 +466,15 @@ class CodeParser():
         for header_file in files:
             state = states.OUTSIDE_KEYWORD
             with open(header_file, "r", encoding="utf-8") as header:
+                # Match typedefs and brackets only when they are at the
+                # beginning of the line -- if they are indented, they might
+                # be sub-structures within structs, etc.
+                optional_c_identifier = r"([_a-zA-Z][_a-zA-Z0-9]*)?"
                 for line_no, line in enumerate(header):
-                    # Match typedefs and brackets only when they are at the
-                    # beginning of the line -- if they are indented, they might
-                    # be sub-structures within structs, etc.
-                    optional_c_identifier = r"([_a-zA-Z][_a-zA-Z0-9]*)?"
                     if (state == states.OUTSIDE_KEYWORD and
                             re.search(r"^(typedef +)?enum " + \
-                                    optional_c_identifier + \
-                                    r" *{", line)):
+                                        optional_c_identifier + \
+                                        r" *{", line)):
                         state = states.IN_BRACES
                     elif (state == states.OUTSIDE_KEYWORD and
                           re.search(r"^(typedef +)?enum", line)):
@@ -492,16 +487,18 @@ class CodeParser():
                         state = states.OUTSIDE_KEYWORD
                     elif (state == states.IN_BRACES and
                           not re.search(r"^ *#", line)):
-                        enum_const = re.search(r"^ *(?P<enum_const>\w+)", line)
-                        if not enum_const:
-                            continue
-
-                        enum_consts.append(Match(
-                            header_file,
-                            line,
-                            line_no,
-                            enum_const.span("enum_const"),
-                            enum_const.group("enum_const")))
+                        if enum_const := re.search(
+                            r"^ *(?P<enum_const>\w+)", line
+                        ):
+                            enum_consts.append(
+                                Match(
+                                    header_file,
+                                    line,
+                                    line_no,
+                                    enum_const.span("enum_const"),
+                                    enum_const["enum_const"],
+                                )
+                            )
 
         return enum_consts
 
@@ -529,13 +526,11 @@ class CodeParser():
 
         # Terminate current multiline comment?
         if in_block_comment:
-            m = re.search(r"\*/", line)
-            if m:
-                in_block_comment = False
-                line = line[m.end(0):]
-            else:
+            if not (m := re.search(r"\*/", line)):
                 return '', True
 
+            in_block_comment = False
+            line = line[m.end(0):]
         # Remove full comments and string literals.
         # Do it all together to handle cases like "/*" correctly.
         # Note that continuation lines are not supported.
@@ -543,10 +538,7 @@ class CodeParser():
                       lambda s: '""' if s.group('string') else ' ',
                       line)
 
-        # Start an unfinished comment?
-        # (If `/*` was part of a complete comment, it's already been removed.)
-        m = re.search(r"/\*", line)
-        if m:
+        if m := re.search(r"/\*", line):
             in_block_comment = True
             line = line[:m.start(0)]
 
@@ -595,7 +587,7 @@ class CodeParser():
 
             for line_no, line in enumerate(header):
                 line, in_block_comment = \
-                    self.strip_comments_and_literals(line, in_block_comment)
+                        self.strip_comments_and_literals(line, in_block_comment)
 
                 if self.EXCLUSION_LINES.match(line):
                     previous_line = ""
@@ -612,7 +604,7 @@ class CodeParser():
                 # If previous line seemed to start an unfinished declaration
                 # (as above), concat and treat them as one.
                 if previous_line:
-                    line = previous_line.strip() + " " + line.strip() + "\n"
+                    line = f"{previous_line.strip()} {line.strip()}" + "\n"
                     previous_line = ""
 
                 # Skip parsing if line has a space in front = heuristic to
@@ -657,10 +649,11 @@ class CodeParser():
         """
 
         included_files, excluded_files = \
-            self.get_all_files(include, exclude)
+                self.get_all_files(include, exclude)
 
-        self.log.debug("Looking for included identifiers in {} files".format \
-            (len(included_files)))
+        self.log.debug(
+            f"Looking for included identifiers in {len(included_files)} files"
+        )
 
         included_identifiers = []
         excluded_identifiers = []
@@ -757,22 +750,21 @@ class CodeParser():
 
         symbols = []
 
-        # Gather all outputs of nm
-        nm_output = ""
-        for lib in object_files:
-            nm_output += subprocess.run(
+        nm_output = "".join(
+            subprocess.run(
                 ["nm", "-og", lib],
                 universal_newlines=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                check=True
+                check=True,
             ).stdout
-
+            for lib in object_files
+        )
         for line in nm_output.splitlines():
             if not nm_undefined_regex.search(line):
                 symbol = nm_valid_regex.search(line)
-                if (symbol and not symbol.group("symbol").startswith(exclusions)):
-                    symbols.append(symbol.group("symbol"))
+                if symbol and not symbol["symbol"].startswith(exclusions):
+                    symbols.append(symbol["symbol"])
                 else:
                     self.log.error(line)
 
@@ -832,15 +824,13 @@ class NameChecker():
         """
         problems = []
         all_identifiers = self.parse_result["identifiers"] +  \
-            self.parse_result["excluded_identifiers"]
+                self.parse_result["excluded_identifiers"]
 
         for symbol in self.parse_result["symbols"]:
-            found_symbol_declared = False
-            for identifier_match in all_identifiers:
-                if symbol == identifier_match.name:
-                    found_symbol_declared = True
-                    break
-
+            found_symbol_declared = any(
+                symbol == identifier_match.name
+                for identifier_match in all_identifiers
+            )
             if not found_symbol_declared:
                 problems.append(SymbolNotInHeader(symbol))
 
@@ -868,9 +858,7 @@ class NameChecker():
                 problems.append(
                     PatternMismatch("no double underscore allowed", item_match))
 
-        self.output_check_result(
-            "Naming patterns of {}".format(group_to_check),
-            problems)
+        self.output_check_result(f"Naming patterns of {group_to_check}", problems)
         return len(problems)
 
     def check_for_typos(self):
@@ -924,11 +912,11 @@ class NameChecker():
         * problems: a List of encountered Problems
         """
         if problems:
-            self.log.info("{}: FAIL\n".format(name))
+            self.log.info(f"{name}: FAIL\n")
             for problem in problems:
                 self.log.warning(str(problem))
         else:
-            self.log.info("{}: PASS".format(name))
+            self.log.info(f"{name}: PASS")
 
 def main():
     """
